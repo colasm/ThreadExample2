@@ -8,6 +8,8 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
 
+import java.lang.ref.WeakReference;
+
 import static android.view.View.GONE;
 import static java.lang.Thread.sleep;
 
@@ -22,6 +24,51 @@ public class MainActivity extends AppCompatActivity {
     private final static int END_COUNT = 101;
     private final static int PROGRESS_MAX = 10;
 
+    /** déclaration statique pour éviter une référence vers l'activité.
+     *  Si on déclare une classe interne non statique, une référence sur
+     *  l'activité est implicitement conservée.
+     *  On a la chaine : Thread -> Handler -> Activité
+     */
+    private static final class ThreadHandler extends Handler{
+
+        private final WeakReference<MainActivity> wrAppCompat;
+
+       public ThreadHandler(MainActivity mainActivity){
+         wrAppCompat = new WeakReference<MainActivity>(mainActivity);
+       }
+
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            MainActivity mainActivity = (MainActivity) wrAppCompat.get();
+            if(mainActivity!=null) {
+                switch (msg.what) {
+                    case UPDATE_COUNT:
+                        mainActivity.setProgressUpdate(msg.arg1);
+                        break;
+                    case END_COUNT:
+                        mainActivity.endProgress();
+                        break;
+                    default:
+                }
+            }
+
+        }
+
+    }
+
+
+    public void setProgressUpdate(int v) {
+        mProgress.setProgress(v);
+    }
+
+    public void endProgress(){
+        mProgress.setVisibility(GONE);
+        mButton.setEnabled(true);
+    }
+
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -29,23 +76,7 @@ public class MainActivity extends AppCompatActivity {
         mButton = findViewById(R.id.button);
         mProgress = findViewById(R.id.progressBar);
         mProgress.setMax(PROGRESS_MAX);
-
-        mHandler = new Handler(){
-            @Override
-            public void handleMessage(Message msg) {
-                super.handleMessage(msg);
-                switch(msg.what){
-                    case UPDATE_COUNT :
-                        mProgress.setProgress(msg.arg1);
-                        break;
-                    case END_COUNT :
-                        mProgress.setVisibility(GONE);
-                        mButton.setEnabled(true);
-                        break;
-                    default :
-                }
-            }
-        };
+        mHandler = new ThreadHandler(this);
 
 
         mButton.setOnClickListener(new View.OnClickListener() {
